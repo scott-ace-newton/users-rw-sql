@@ -1,0 +1,11 @@
+[
+  {
+    "userID": "16f701dc-5e71-497b-a197-ef7b8618cbea",
+    "firstName": "Jane",
+    "lastName": "Doe",
+    "emailAddress": "jane.doe@gmail.com",
+    "password": "password2",
+    "nickname": "GIJane",
+    "country": "United States of America"
+  }
+]

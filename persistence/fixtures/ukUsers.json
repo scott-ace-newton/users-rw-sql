@@ -1,0 +1,20 @@
+[
+  {
+    "userID": "b16dc0b3-e0ab-4dbd-89e3-d031a28cbc59",
+    "firstName": "James",
+    "lastName": "Bond",
+    "emailAddress": "j.bond@mi6.co.uk",
+    "password": "password007",
+    "nickname": "BondJamesBond",
+    "country": "United Kingdom"
+  },
+  {
+    "userID": "e41e62c8-6cf2-4fd7-a88b-41b86fcaa34d",
+    "firstName": "John",
+    "lastName": "Smith",
+    "emailAddress": "john.smith@gmail.com",
+    "password": "password1",
+    "nickname": "smithy12345",
+    "country": "United Kingdom"
+  }
+]
