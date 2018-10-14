@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"github.com/gorilla/mux"
 	"github.com/jawher/mow.cli"
 	"github.com/scott-ace-newton/users-rw-sql/notification"
@@ -30,19 +31,19 @@ func main() {
 	})
 	sqlDSN := app.String(cli.StringOpt{
 		Name:      "sqlDSN",
-		Desc:      "DSN to connect to the DB e.g. user:pass@host/schema",
+		Desc:      "DSN to connect to the db e.g. host/schema",
 		EnvVar:    "SQL_DSN",
 		HideValue: true,
 	})
 	queueURL := app.String(cli.StringOpt{
-		Name:      "carouselQueueURL",
+		Name:      "queueURL",
 		Desc:      "Url of queue to send messages to",
 		EnvVar:    "QUEUE_URL",
 		HideValue: true,
 	})
 	port := app.String(cli.StringOpt{
 		Name:   "port",
-		Value:  "8080",
+		Value:  "1234",
 		Desc:   "Port to listen on",
 		EnvVar: "APP_PORT",
 	})
@@ -59,7 +60,7 @@ func main() {
 		logLvl = log.InfoLevel
 	}
 	log.SetLevel(logLvl)
-	log.Infof("[Startup] %s is starting on port %s...", appName, port)
+	log.Infof("[Startup] %s is starting on port %s...", appName, *port)
 
 	app.Action = func() {
 		if *queueURL == "" {
@@ -89,17 +90,29 @@ func main() {
 		sig := make(chan os.Signal)
 		signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)
 
+
+		httpServer := &http.Server{
+			Addr:         fmt.Sprintf("0.0.0.0:%s", *port),
+			ReadTimeout:  5 * time.Second,
+			WriteTimeout: 5 * time.Second,
+			Handler: r,
+		}
+
 		go func() {
 			log.Infof("Listening on port %v", *port)
-			if err := http.ListenAndServe("/", r); err != nil {
+			if err := httpServer.ListenAndServe(); err != nil {
 				log.Errorf("HTTP server got shut down error: %v", err)
 			}
 			sig <- os.Interrupt
 		}()
-
 		<-sig
 		log.Info("shutting down HTTP server...")
 		time.Sleep(2 * time.Second)
 		os.Exit(0)
+	}
+	err = app.Run(os.Args)
+	if err != nil {
+		log.Errorf("app could not start, error=[%s]\n", err)
+		return
 	}
 }

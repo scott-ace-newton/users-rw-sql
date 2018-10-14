@@ -1,0 +1,261 @@
+swagger: "2.0"
+
+info:
+  title: Users Rw Sql
+  description: Users Rw Sql is a RESTful API allowing for CRUD operations on User data
+  version: 0.0.0
+  license:
+    name: MIT
+  contact:
+    name: Scott Newton
+    email: scottacenewton@gmail.com
+
+basePath: "/"
+schemes:
+- https
+produces:
+- application/json
+
+paths:
+  /__health:
+    get:
+      summary: Healthcheck
+      description: Runs application healthchecks and returns simple json response.
+      responses:
+        200: ok
+        503: unavailable
+
+  /users:
+    put:
+      summary: Adds users to DB.
+      produces:
+      - application/json
+      parameters:
+      - name: userID
+        in: body
+        description: The UUID of the user
+        required: true
+        type: string
+        x-example: 97c97db4-4a93-43a4-87c9-b04d7f5284c1
+      - name: firstName
+        in: body
+        description: The first name of the user
+        required: true
+        type: string
+        x-example: John
+      - name: lastName
+        in: body
+        description: The last name of the user
+        required: true
+        type: string
+        x-example: Smith
+      - name: emailAddress
+        in: body
+        description: The email address of the user
+        required: true
+        type: string
+        x-example: john.smith@gmail.com
+      - name: password
+        in: body
+        description: The password of the user
+        required: true
+        type: string
+      - name: nickname
+        in: body
+        description: The nickname of the user
+        required: true
+        type: string
+        x-example: Smithy12345
+      - name: country
+        in: body
+        description: The country of the user
+        required: true
+        type: string
+        x-example: United Kingdom
+      responses:
+        201: created
+        400: badRequest
+        409: conflict
+        500: internal
+    get:
+      summary: Returns user list from DB.
+      description:
+      produces:
+      - application/json
+      parameters:
+      - name: userID
+        in: query
+        description: The UUID of the user
+        required: false
+        type: string
+        x-example: 97c97db4-4a93-43a4-87c9-b04d7f5284c1
+      - name: firstName
+        in: query
+        description: The first name of the user
+        required: false
+        type: string
+        x-example: John
+      - name: lastName
+        in: query
+        description: The last name of the user
+        required: false
+        type: string
+        x-example: Smith
+      - name: emailAddress
+        in: query
+        description: The email address of the user
+        required: false
+        type: string
+        x-example: john.smith@gmail.com
+      - name: nickname
+        in: query
+        description: The nickname of the user
+        required: false
+        type: string
+        x-example: Smithy12345
+      - name: country
+        in: query
+        description: The country of the user
+        required: false
+        type: string
+        x-example: United Kingdom
+      responses:
+        200: ok
+        400: badRequest
+        404: notFound
+        422: conflict
+        500: internal
+
+/users/{userID}:
+  patch:
+    summary: Modifies supplied params for given user.
+    produces:
+    - application/json
+    parameters:
+    - name: userID
+      in: path
+      description: The UUID of the user
+      required: true
+      type: string
+      x-example: 97c97db4-4a93-43a4-87c9-b04d7f5284c1
+    - name: firstName
+      in: body
+      description: The first name of the user
+      required: false
+      type: string
+      x-example: John
+    - name: lastName
+      in: body
+      description: The last name of the user
+      required: false
+      type: string
+      x-example: Smith
+    - name: password
+      in: body
+      description: The password of the user
+      required: false
+      type: string
+    - name: nickname
+      in: body
+      description: The nickname of the user
+      required: false
+      type: string
+      x-example: Smithy12345
+    - name: country
+      in: body
+      description: The country of the user
+      required: false
+      type: string
+      x-example: United Kingdom
+    responses:
+      200: ok
+      400: badRequest
+      404: notFound
+      500: internal
+  delete:
+    summary: Deletes user from DB.
+    description:
+    produces:
+    - application/json
+    parameters:
+    - name: userID
+      in: path
+      description: The UUID of the user
+      required: true
+      type: string
+      x-example: 97c97db4-4a93-43a4-87c9-b04d7f5284c1
+    responses:
+      204: noContent
+      400: badRequest
+      500: internal
+
+definitions:
+  account:
+    type: object
+    title: Account
+    properties:
+      type:
+        type: string
+        description: Type of the account
+        x-example: http://www.ft.com/ontology/emailAddress
+      value:
+        type: string
+        description: Value of the account
+        x-example: foo@bar.com
+  alternativeLabel:
+    type: object
+    title: AlternativeLabel
+    properties:
+      type:
+        type: string
+        description: Type of the alternative label
+        x-example: http://www.ft.com/ontology/shortLabel
+      value:
+        type: string
+        description: Alternative Label
+        x-example: A topic short label
+  concept:
+    type: object
+    title: Concept
+    properties:
+      id:
+        type: string
+        description: The canonical ID of the concept
+      apiUrl:
+        type: string
+        description: Api url of the concept
+      prefLabel:
+        type: string
+        description: Label
+      type:
+        type: string
+        description: Direct type
+      accounts:
+        type: array
+        items:
+          $ref: '#/definitions/account'
+      alternativeLabels:
+        type: array
+        items:
+          $ref: '#/definitions/alternativeLabel'
+      descriptionXML:
+        type: string
+      imageUrl:
+        type: string
+      narrowerConcepts:
+        type: array
+        items:
+          $ref: '#/definitions/concept'
+      broaderConcepts:
+        type: array
+        items:
+          $ref: '#/definitions/concept'
+      relatedConcepts:
+        type: array
+        items:
+          $ref: '#/definitions/concept'
+    required:
+    - id
+    - apiUrl
+    - type
+  

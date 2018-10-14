@@ -1,12 +1,13 @@
 FROM golang:1.11-alpine As builder
 
-COPY . $GOPATH/src/github.com/scott-ace-newton/users-rw-sql
+RUN apk --no-cache --upgrade add ca-certificates \
+    && update-ca-certificates --fresh \
+    && apk --no-cache add --upgrade \
+    git
 
-RUN cd ..
+COPY . /src/users-rw-sql
 
-RUN go mod download
-
-WORKDIR $GOPATH/src/github.com/scott-ace-newton/users-rw-sql
+WORKDIR /src/users-rw-sql
 
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o /go/bin/users-rw-sql
 

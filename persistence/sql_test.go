@@ -11,11 +11,8 @@ import (
 )
 
 const (
-	john_smith = "e41e62c8-6cf2-4fd7-a88b-41b86fcaa34d"
-	jane_doe = "16f701dc-5e71-497b-a197-ef7b8618cbea"
-	james_bond = "b16dc0b3-e0ab-4dbd-89e3-d031a28cbc59"
-	brutus = "325ef78c-f0ac-424b-814d-7c7cd03ec44d"
-	caesar = "ff7dfd22-9134-429b-9482-0888ffdfc64b"
+	janeDoe = "16f701dc-5e71-497b-a197-ef7b8618cbea"
+	caesar  = "ff7dfd22-9134-429b-9482-0888ffdfc64b"
 )
 
 var client Client
@@ -29,7 +26,7 @@ func TestClient_GetUsersFromDB(t *testing.T) {
 	var err error
 	client, err = NewTestClient()
 	if err != nil {
-		log.Fatal("could not start test DB")
+		log.Fatal("could not start test db")
 	}
 	assert.NoError(t, client.populateUserTable(), "test failed: could not add records to db")
 	defer client.clearTestDatabase()
@@ -43,7 +40,7 @@ func TestClient_GetUsersFromDB(t *testing.T) {
 		{
 			testName: "GetUsers_JaneDoe",
 			parameters: map[string]string{
-				"user_id": jane_doe,
+				"user_id": janeDoe,
 			},
 			resultFilePath: "./fixtures/janeDoe.json",
 			expectedStatus: OK,
@@ -86,7 +83,7 @@ func TestClient_AddUpdateDeleteUsers(t *testing.T) {
 	var status Status
 	client, err = NewTestClient()
 	if err != nil {
-		log.Fatal("could not start test DB")
+		log.Fatal("could not start test db")
 	}
 	defer client.clearTestDatabase()
 	startingUser := UserRecord{
@@ -148,7 +145,7 @@ func TestClient_AddUpdateDeleteUsers(t *testing.T) {
 	assert.Equal(t, OK, status, "test failed: could not retrieve user: "+caesar)
 	assert.Equal(t, newUpdatedUser, newUpdatedRecord[0])
 
-	//can delete record from DB
+	//can delete record from db
 	status = client.DeleteRecord(caesar)
 	assert.Equal(t, DELETED, status,"test failed: could not delete user")
 
@@ -163,7 +160,7 @@ func TestClient_AddUpdateDeleteUsers(t *testing.T) {
 }
 
 func NewTestClient() (Client, error) {
-	connString := "root:@/test?interpolateParams=true&parseTime=true"
+	connString := "root@/test?interpolateParams=true&parseTime=true"
 	c, err := sql.Open("mysql", connString)
 	if err != nil {
 		log.WithError(err).Errorf("error connecting to db: %s", connString)
@@ -183,8 +180,7 @@ func NewTestClient() (Client, error) {
     	password varchar(50) NOT NULL,
     	nickname varchar(50) NOT NULL,
     	country varchar(50) NOT NULL,
-  		PRIMARY KEY (user_id)
-)`
+  		PRIMARY KEY (user_id))`
 	_, err = c.Exec(query)
 	if err != nil {
 		log.WithError(err).Error("error creating user table")
@@ -192,13 +188,13 @@ func NewTestClient() (Client, error) {
 	}
 
 	return Client{
-		DB: c,
+		db: c,
 	}, nil
 }
 
 func (c *Client) clearTestDatabase() {
 	query := "DROP TABLE IF EXISTS Users"
-	_, err := c.DB.Exec(query)
+	_, err := c.db.Exec(query)
 	if err != nil {
 		log.Fatalf("failed to clear up test data tables with error: %v", err)
 	}
@@ -211,7 +207,7 @@ func (c *Client) populateUserTable() error {
 		('b16dc0b3-e0ab-4dbd-89e3-d031a28cbc59','James','Bond','j.bond@mi6.co.uk','password007','BondJamesBond','United Kingdom'),
 		('325ef78c-f0ac-424b-814d-7c7cd03ec44d','Cleo','Patra','cleopatra@gmail.com','password3','Cle0','Egypt'),
 		('ff7dfd22-9134-429b-9482-0888ffdfc64b','Julius','Caesar','caesar@gmail.com','password4','ETuBrute','Italy');`
-	_, err := c.DB.Exec(dbQuery)
+	_, err := c.db.Exec(dbQuery)
 	if err != nil {
 		fmt.Println("Error 2")
 	}

@@ -14,18 +14,20 @@ import (
 	"net/url"
 )
 
-const (
-	msgTemplate = "{\"message\": \"%s\"}"
-	CreatedEvent = "USER_CREATED"
-	NickNameChangedEvent   = "NICKNAME_CHANGED"
-)
+const msgTemplate = "{\"message\": \"%s\"}"
 
+type Check struct {
+	System string `json:"system"`
+	Status string `json:"status"`
+}
 
+//UsersHandler stores configured sql and queue clients
 type UsersHandler struct {
 	sqlClient persistence.Clienter
 	queueClient notification.QueueClient
 }
 
+//NewUsersHandler returns handler with configured sql and queue clients
 func NewUsersHandler(sqlClient persistence.Clienter, queueClient notification.QueueClient) UsersHandler {
 	return UsersHandler{
 		sqlClient: sqlClient,
@@ -33,32 +35,70 @@ func NewUsersHandler(sqlClient persistence.Clienter, queueClient notification.Qu
 	}
 }
 
+//RegisterHandlers registers application endpoints
 func (h *UsersHandler) RegisterHandlers(router *mux.Router) {
 	log.Info("registering handlers")
-	addUserHandler := handlers.MethodHandler{
-		"PUT": http.HandlerFunc(h.AddUser),
-	}
-	editUserHandler := handlers.MethodHandler{
+	editDeleteUserHandler := handlers.MethodHandler{
 		"PATCH": http.HandlerFunc(h.EditUser),
-	}
-	getUserHandler := handlers.MethodHandler{
-		"GET": http.HandlerFunc(h.GetRecords),
-	}
-	removeUserHandler := handlers.MethodHandler{
 		"DELETE": http.HandlerFunc(h.DeleteUser),
+	}
+	addGetUserHandler := handlers.MethodHandler{
+		"PUT": http.HandlerFunc(h.AddUser),
+		"GET": http.HandlerFunc(h.GetRecords),
 	}
 	healthHandler := handlers.MethodHandler{
 		"GET": http.HandlerFunc(h.IsHealthy),
 	}
 
-	// These paths need to actually be the concept type
-	router.Handle("/addUser", addUserHandler)
-	router.Handle("/user/{userID}", editUserHandler)
-	router.Handle("/user", getUserHandler)
-	router.Handle("/user/{userID}", removeUserHandler)
+	router.Handle("/users/{userID}", editDeleteUserHandler)
+	router.Handle("/users", addGetUserHandler)
 	router.Handle("/__health", healthHandler)
 }
 
+// AddUser swagger:route PUT /users users addUser
+// ---
+// summary: Add users
+// description: Add user records to DB
+// parameters:
+// - name: userID
+//   in: body
+//   description: users uuid
+//   type: string
+//   required: true
+// - name: firstName
+//   in: body
+//   description: users first name
+//   type: string
+//   required: true
+// - name: lastName
+//   in: body
+//   description: users last name
+//   type: string
+//   required: true
+// - name: emailAddress
+//   in: body
+//   description: users email address
+//   type: string
+//   required: true
+// - name: password
+//   in: body
+//   description: users password
+//   type: string
+//   required: true
+// - name: nickname
+//   in: body
+//   description: users nickname
+//   type: string
+//   required: true
+// - name: country
+//   in: body
+//   description: users country
+//   type: string
+//   required: true
+//201: created
+//400: badRequest
+//409: conflict
+//500: internal
 func (h *UsersHandler) AddUser(writer http.ResponseWriter, request *http.Request) {
 	writer.Header().Add("Content-Type", "application/json")
 	var body io.Reader = request.Body
@@ -79,20 +119,60 @@ func (h *UsersHandler) AddUser(writer http.ResponseWriter, request *http.Request
 	switch h.sqlClient.CreateRecord(ur) {
 	case persistence.CREATED:
 		h.queueClient.AddMessageToQueue(persistence.Message{
-			Type: CreatedEvent,
+			Type: "USER_CREATED",
 			UserID: ur.UserID,
 		})
 		writer.WriteHeader(http.StatusCreated)
 		fmt.Fprintln(writer, fmt.Sprintf(msgTemplate, "created user with ID: " + ur.UserID))
 	case persistence.ALREADY_EXISTS:
 		writer.WriteHeader(http.StatusConflict)
-		fmt.Fprintln(writer, fmt.Sprintf(msgTemplate, fmt.Sprintf("user with email: %s already exists in DB!", ur.EmailAddress)))
+		fmt.Fprintln(writer, fmt.Sprintf(msgTemplate, fmt.Sprintf("user with email: %s already exists in db!", ur.EmailAddress)))
 	default:
 		writer.WriteHeader(http.StatusInternalServerError)
-		fmt.Fprintln(writer, fmt.Sprintf(msgTemplate, "could not add user to DB"))
+		fmt.Fprintln(writer, fmt.Sprintf(msgTemplate, "could not add user to db"))
 	}
 }
 
+// swagger:operation PATCH /users/{userID} users editUser
+// ---
+// summary: Modify users
+// description: Modify provided user fields for the specified UserID
+// parameters:
+// - name: userID
+//   in: path
+//   description: users uuid
+//   type: string
+//   required: true
+// - name: firstName
+//   in: body
+//   description: users first name
+//   type: string
+//   required: false
+// - name: lastName
+//   in: body
+//   description: users last name
+//   type: string
+//   required: false
+// - name: password
+//   in: body
+//   description: users password
+//   type: string
+//   required: false
+// - name: nickname
+//   in: body
+//   description: users nickname
+//   type: string
+//   required: false
+// - name: country
+//   in: body
+//   description: users country
+//   type: string
+//   required: false
+// responses:
+//   200: ok
+//   400: badRequest
+//   404: notFound
+//   500: internal
 func (h *UsersHandler) EditUser(writer http.ResponseWriter, request *http.Request) {
 	writer.Header().Add("Content-Type", "application/json")
 	vars := mux.Vars(request)
@@ -100,18 +180,24 @@ func (h *UsersHandler) EditUser(writer http.ResponseWriter, request *http.Reques
 
 	var body io.Reader = request.Body
 	dec := json.NewDecoder(body)
-
 	ur := persistence.UserRecord{}
 	if err := dec.Decode(&ur); err != nil {
 		log.WithError(err).Error("could not decode request body")
-		writer.WriteHeader(http.StatusInternalServerError)
+		writer.WriteHeader(http.StatusBadRequest)
 		fmt.Fprintln(writer, fmt.Sprintf(msgTemplate, "could not decode request body"))
+		return
+	}
+
+	if ur.EmailAddress != "" {
+		log.WithField("UserID", userID).Error( "users are currently unable to change their email address")
+		writer.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintln(writer, fmt.Sprintf(msgTemplate, "users are currently unable to change their email address"))
 		return
 	}
 
 	updates, nicknameChanged := extractFieldsToUpdate(ur)
 	if len(updates) == 0 {
-		log.WithField("UserID", userID).Error(fmt.Sprintf( "supplied fields are not valid for update in request body: %v", body))
+		log.WithField("UserID", userID).Info(fmt.Sprintf( "supplied fields are not valid for update in request body: %v", body))
 		writer.WriteHeader(http.StatusBadRequest)
 		fmt.Fprintln(writer, fmt.Sprintf(msgTemplate, "supplied fields are not valid for update"))
 		return
@@ -121,7 +207,7 @@ func (h *UsersHandler) EditUser(writer http.ResponseWriter, request *http.Reques
 	case persistence.UPDATED:
 		if nicknameChanged {
 			h.queueClient.AddMessageToQueue(persistence.Message{
-				Type: NickNameChangedEvent,
+				Type: "NICKNAME_CHANGED",
 				UserID: userID,
 				Nickname: updates["nickname"],
 			})
@@ -147,9 +233,6 @@ func extractFieldsToUpdate(ur persistence.UserRecord) (map[string]string, bool) 
 	if ur.LastName != "" {
 		updates["last_name"] = ur.LastName
 	}
-	if ur.EmailAddress != "" {
-		updates["email"] = ur.EmailAddress
-	}
 	if ur.Password != "" {
 		updates["password"] = ur.Password
 	}
@@ -163,6 +246,47 @@ func extractFieldsToUpdate(ur persistence.UserRecord) (map[string]string, bool) 
 	return updates, nicknameChanged
 }
 
+// swagger:operation GET /users users getUser
+// ---
+// summary: Return userList
+// description: Returns list of users matching specified criteria
+// parameters:
+// - name: userID
+//   in: query
+//   description: users uuid
+//   type: string
+//   required: false
+// - name: firstName
+//   in: query
+//   description: users first name
+//   type: string
+//   required: false
+// - name: lastName
+//   in: query
+//   description: users last name
+//   type: string
+//   required: false
+// - name: emailAddress
+//   in: query
+//   description: users email address
+//   type: string
+//   required: false
+// - name: nickname
+//   in: query
+//   description: users nickname
+//   type: string
+//   required: false
+// - name: country
+//   in: query
+//   description: users country
+//   type: string
+//   required: false
+// responses:
+//   200: ok
+//   400: badRequest
+//   404: notFound
+//   422: unprocessable
+//   500: internal
 func (h *UsersHandler) GetRecords(writer http.ResponseWriter, request *http.Request) {
 	writer.Header().Add("Content-Type", "application/json")
 
@@ -213,7 +337,7 @@ func filterQueryParams(key string) string {
 		return "first_name"
 	case "lastName":
 		return "last_name"
-	case "email":
+	case "emailAddress":
 		return "email"
 	case "nickname":
 		return "nickname"
@@ -226,6 +350,20 @@ func filterQueryParams(key string) string {
 	return ""
 }
 
+// swagger:operation DELETE /users/{userID} users deleteUser
+// ---
+// summary: Delete users
+// description: Delete user with matching UserID from DB
+// parameters:
+// - name: userID
+//   in: path
+//   description: users uuid
+//   type: string
+//   required: true
+// responses:
+//   204: noContent
+//   404: notFound
+//   500: internal
 func (h *UsersHandler) DeleteUser(writer http.ResponseWriter, request *http.Request) {
 	writer.Header().Add("Content-Type", "application/json")
 	vars := mux.Vars(request)
@@ -235,7 +373,7 @@ func (h *UsersHandler) DeleteUser(writer http.ResponseWriter, request *http.Requ
 		writer.WriteHeader(http.StatusNoContent)
 		fmt.Fprintln(writer, fmt.Sprintf(msgTemplate, "user record deleted"))
 	case persistence.NOT_FOUND:
-		writer.WriteHeader(http.StatusNoContent)
+		writer.WriteHeader(http.StatusNotFound)
 		fmt.Fprintln(writer, fmt.Sprintf(msgTemplate, "user does not exist"))
 	default:
 		writer.WriteHeader(http.StatusInternalServerError)
@@ -243,12 +381,31 @@ func (h *UsersHandler) DeleteUser(writer http.ResponseWriter, request *http.Requ
 	}
 }
 
+//IsHealthy swagger:route GET /__health isHealthy
+//
+//Returns health of system
+//
+//Responses:
+//
+//200: ok
+//503: unavailable
 func (h *UsersHandler) IsHealthy(writer http.ResponseWriter, request *http.Request) {
-	//TODO do properly
+	writer.Header().Add("Content-Type", "application/json")
+	var checks []Check
+
 	if h.sqlClient.ActiveConnection() {
-		writer.WriteHeader(http.StatusOK)
-		fmt.Fprintln(writer, fmt.Sprintf(msgTemplate, "app is healthy"))
+		checks = append(checks, Check{"sqlDB", "healthy"})
+	} else {
+		checks = append(checks, Check{"sqlDB", "unhealthy"})
 	}
-	writer.WriteHeader(http.StatusServiceUnavailable)
-	fmt.Fprintln(writer, fmt.Sprintf(msgTemplate, "app is unhealthy"))
+
+	if h.queueClient.QueueIsWritable() {
+		checks = append(checks, Check{"msgQueue", "healthy"})
+	} else {
+		checks = append(checks, Check{"msgQueue", "unhealthy"})
+	}
+
+
+	enc := json.NewEncoder(writer)
+	enc.Encode(checks)
 }

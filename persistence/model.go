@@ -1,5 +1,6 @@
 package persistence
 
+//UserRecord is the model for a User
 type UserRecord struct {
 	UserID string `json:"userID"`
 	FirstName string `json:"firstName"`
@@ -10,6 +11,7 @@ type UserRecord struct {
 	Country string `json:"country"`
 }
 
+//Message is the model for a message
 type Message struct {
 	Type string
 	UserID string

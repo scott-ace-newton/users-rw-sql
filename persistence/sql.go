@@ -4,15 +4,19 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/go-sql-driver/mysql"
+	//mysql driver
 	_ "github.com/go-sql-driver/mysql"
 	log "github.com/sirupsen/logrus"
 	"strings"
 )
 
+//Client for SQL database
 type Client struct {
-	DB *sql.DB
+	db *sql.DB
 }
 
+//Status abstracts business logic layer from http status codes
+//Status must be exported for handler tests
 type Status int
 const (
 	CREATED Status = iota
@@ -24,6 +28,7 @@ const (
 	DELETED
 )
 
+//Clienter provides an interface of Client functions. Useful for mocking
 type Clienter interface {
 	CreateRecord(UserRecord) Status
 	UpdateRecord(string, map[string]string) Status
@@ -32,8 +37,10 @@ type Clienter interface {
 	ActiveConnection() bool
 }
 
+//NewClient returns a MySQL client
 func NewClient(dsn string, credentials string) (Clienter, error) {
-	connString := fmt.Sprintf("%s@tcp(%s)/factset?interpolateParams=true&parseTime=true", credentials, dsn)
+	connString := fmt.Sprintf("%s@/%s?interpolateParams=true&parseTime=true", credentials, dsn)
+	fmt.Printf("connecting on %s", connString)
 	db, err := sql.Open("mysql", connString)
 	if err != nil {
 		log.WithError(err).Error("error connecting to db")
@@ -45,9 +52,10 @@ func NewClient(dsn string, credentials string) (Clienter, error) {
 		return &Client{}, err
 	}
 
-	//query1 := `CREATE IF NOT EXISTS SCHEMA 'test' ;`
 
-	query := `CREATE TABLE Users (
+	//query1 := `CREATE IF NOT EXISTS SCHEMA test;`
+
+	query := `CREATE TABLE IF NOT EXISTS Users (
     	user_id varchar(36)  NOT NULL,
     	first_name varchar(50) NOT NULL,
     	last_name varchar(50) NOT NULL,
@@ -55,34 +63,36 @@ func NewClient(dsn string, credentials string) (Clienter, error) {
     	password varchar(50) NOT NULL,
     	nickname varchar(50) NOT NULL,
     	country varchar(50) NOT NULL,
-  		PRIMARY KEY (user_id);`
+  		PRIMARY KEY (user_id))`
 	_, err = db.Exec(query)
 	if err != nil {
 		log.WithError(err).Error("error creating Users table")
 		return &Client{}, err
 	}
 	return &Client{
-		DB: db,
+		db: db,
 	}, nil
 }
 
+//CreateRecord will attempt to add the provided user to the DB
 func (c *Client) CreateRecord(record UserRecord) Status {
 	dbQuery := `INSERT INTO Users (user_id, first_name, last_name, email, password, nickname, country)
 		VALUES (?, ?, ?, ?, ?, ?, ?);`
-	_, err := c.DB.Exec(dbQuery, record.UserID, record.FirstName, record.LastName, record.EmailAddress, record.Password, record.NickName, record.Country)
+	_, err := c.db.Exec(dbQuery, record.UserID, record.FirstName, record.LastName, record.EmailAddress, record.Password, record.NickName, record.Country)
 	if err != nil {
 		sqlError, _ := err.(*mysql.MySQLError)
 		if sqlError.Number == 1062 {
 			log.WithError(err).WithField("UserID", record.UserID).Errorf("user with this email: %s already exists!", record.EmailAddress)
 			return ALREADY_EXISTS
 		}
-		log.WithError(err).WithField("UserID", record.UserID).Errorf("could not add user to DB")
+		log.WithError(err).WithField("UserID", record.UserID).Errorf("could not add user to db")
 		return BACKEND_ERROR
 	}
 	log.WithField("UserID", record.UserID).Infof("created record for user with email %s", record.EmailAddress)
 	return CREATED
 }
 
+//UpdateRecord will attempt to edit certain fields of the provided user in the DB
 func (c *Client) UpdateRecord(userID string, fieldsToUpdate map[string]string) Status {
 	var updates string
 	for k,v := range fieldsToUpdate {
@@ -93,7 +103,7 @@ func (c *Client) UpdateRecord(userID string, fieldsToUpdate map[string]string) S
 						SET %s
 						WHERE user_id = ?;`, strings.TrimSuffix(updates, ","))
 	log.WithField("UserID", userID).Debugf("update query: %s", updateTemplate)
-	results, err := c.DB.Exec(updateTemplate, userID)
+	results, err := c.db.Exec(updateTemplate, userID)
 	if err != nil {
 		log.WithError(err).WithField("UserID", userID).Errorf("could not update user due to error running query")
 		return BACKEND_ERROR
@@ -110,6 +120,7 @@ func (c *Client) UpdateRecord(userID string, fieldsToUpdate map[string]string) S
  	return UPDATED
 }
 
+//RetrieveRecords will find all users matching the provided parameters in the DB
 func (c *Client) RetrieveRecords(fieldsToUpdate map[string]string) ([]UserRecord, Status) {
 	var results []UserRecord
 	var whereClause string
@@ -124,7 +135,7 @@ func (c *Client) RetrieveRecords(fieldsToUpdate map[string]string) ([]UserRecord
 						  %s;`, whereClause)
 	log.Debugf("retrieve query is %s", retrieveTemplate)
 
-	statement, err := c.DB.Prepare(retrieveTemplate)
+	statement, err := c.db.Prepare(retrieveTemplate)
 	if err != nil {
 		log.WithError(err).Error("failed to prepare query template")
 		return results, BACKEND_ERROR
@@ -168,12 +179,13 @@ func validateString(value sql.NullString) string {
 	return ""
 }
 
+//DeleteRecord will attempt to remove the provided user from the DB
 func (c *Client) DeleteRecord(userID string) Status {
 	deleteTemplate := `DELETE FROM Users
 					   WHERE user_id = ?;`
-	results, err := c.DB.Exec(deleteTemplate, userID)
+	results, err := c.db.Exec(deleteTemplate, userID)
 	if err != nil {
-		log.WithError(err).WithField("UserID", userID).Error("could not delete user from DB")
+		log.WithError(err).WithField("UserID", userID).Error("could not delete user from db")
 		return BACKEND_ERROR
 	}
 	rows, err := results.RowsAffected()
@@ -181,16 +193,17 @@ func (c *Client) DeleteRecord(userID string) Status {
 		log.WithError(err).WithField("UserID", userID).Error("error processing request")
 		return BACKEND_ERROR
 	} else if rows == 0 {
-		log.WithField("UserID", userID).Info("could not delete user from DB as they do not exist")
+		log.WithField("UserID", userID).Info("could not delete user from db as they do not exist")
 		return NOT_FOUND
 	}
-	log.WithField("UserID", userID).Info("user removed from DB")
+	log.WithField("UserID", userID).Info("user removed from db")
 	return DELETED
 }
 
+//ActiveConnection will check if still connected to DB
 func (c *Client) ActiveConnection() bool {
-	if err := c.DB.Ping(); err != nil {
-		log.WithError(err).Error("Received error running RDS health check")
+	if err := c.db.Ping(); err != nil {
+		log.WithError(err).Error("could not connect to db")
 		return false
 	}
 	return true
