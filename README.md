@@ -21,7 +21,7 @@ Install sql and create schemas and download source code
 
 1. Run the tests and install the binary:
 
-        go test -v -race -cover
+        go test ./... -v -race -cover
         go install
 
 2. Run the binary (using the `help` flag to see the available optional arguments):
