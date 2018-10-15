@@ -160,7 +160,7 @@ func TestClient_AddUpdateDeleteUsers(t *testing.T) {
 }
 
 func NewTestClient() (Client, error) {
-	connString := "root@/test?interpolateParams=true&parseTime=true"
+	connString := "root:password@/dev?interpolateParams=true&parseTime=true"
 	c, err := sql.Open("mysql", connString)
 	if err != nil {
 		log.WithError(err).Errorf("error connecting to db: %s", connString)
@@ -172,7 +172,7 @@ func NewTestClient() (Client, error) {
 		return Client{}, err
 	}
 
-	query := `CREATE TABLE Users (
+	query := `CREATE TABLE IF NOT EXISTS Users (
     	user_id varchar(36)  NOT NULL,
     	first_name varchar(50) NOT NULL,
     	last_name varchar(50) NOT NULL,

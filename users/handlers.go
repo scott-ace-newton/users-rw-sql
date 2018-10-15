@@ -12,10 +12,13 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 )
 
 const msgTemplate = "{\"message\": \"%s\"}"
 
+//Check models a very basic healthcheck
+// swagger:model Check
 type Check struct {
 	System string `json:"system"`
 	Status string `json:"status"`
@@ -197,7 +200,7 @@ func (h *UsersHandler) EditUser(writer http.ResponseWriter, request *http.Reques
 
 	updates, nicknameChanged := extractFieldsToUpdate(ur)
 	if len(updates) == 0 {
-		log.WithField("UserID", userID).Info(fmt.Sprintf( "supplied fields are not valid for update in request body: %v", body))
+		log.WithField("UserID", userID).Infof( "supplied fields are not valid for update in request body: %v", body)
 		writer.WriteHeader(http.StatusBadRequest)
 		fmt.Fprintln(writer, fmt.Sprintf(msgTemplate, "supplied fields are not valid for update"))
 		return
@@ -304,9 +307,21 @@ func (h *UsersHandler) GetRecords(writer http.ResponseWriter, request *http.Requ
 		fmt.Fprintln(writer, fmt.Sprintf(msgTemplate, "no url params supplied as criteria by which to search for matching users"))
 		return
 	}
+
 	searchCriteria := make(map[string]string)
 	for k, v := range params {
-		searchCriteria[filterQueryParams(k)] = v[0]
+		newKey := filterQueryParams(k)
+		if newKey != "" {
+			//remove quotes from values
+			searchCriteria[newKey] = strings.Replace(v[0], `"`, "", -1)
+		}
+	}
+
+	if len(searchCriteria) == 0 {
+		log.Infof("supplied request params %s are invalid", params)
+		writer.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintln(writer, fmt.Sprintf(msgTemplate, "supplied request params are invalid; valid params are [userID, firstName, lastName, emailAddress, nickname, country]"))
+		return
 	}
 
 	users, retrievalStatus := h.sqlClient.RetrieveRecords(searchCriteria)

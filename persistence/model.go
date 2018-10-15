@@ -1,6 +1,7 @@
 package persistence
 
 //UserRecord is the model for a User
+// swagger:model UserRecord
 type UserRecord struct {
 	UserID string `json:"userID"`
 	FirstName string `json:"firstName"`
@@ -12,6 +13,7 @@ type UserRecord struct {
 }
 
 //Message is the model for a message
+// swagger:model Message
 type Message struct {
 	Type string
 	UserID string

@@ -135,6 +135,13 @@ func TestGetHandler(t *testing.T) {
 			body:       fmt.Sprintf(msgTemplate + "\n", "no url params supplied as criteria by which to search for matching users"),
 		},
 		{
+			name:       "Error on invalid query params",
+			sqlClient:  &mockSQLClient{persistence.OK, []persistence.UserRecord{johnSmithUser}},
+			reqURL:     `/users?password=12345`,
+			statusCode: http.StatusBadRequest,
+			body:       fmt.Sprintf(msgTemplate + "\n", "supplied request params are invalid; valid params are [userID, firstName, lastName, emailAddress, nickname, country]"),
+		},
+		{
 			name:       "Error on unable to search records in db",
 			sqlClient:  &mockSQLClient{persistence.BACKEND_ERROR, []persistence.UserRecord{}},
 			reqURL:     "/users?userID=3f685356-02a0-3c55-8b8d-c8bac4b79426",

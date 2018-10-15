@@ -39,8 +39,7 @@ type Clienter interface {
 
 //NewClient returns a MySQL client
 func NewClient(dsn string, credentials string) (Clienter, error) {
-	connString := fmt.Sprintf("%s@/%s?interpolateParams=true&parseTime=true", credentials, dsn)
-	fmt.Printf("connecting on %s", connString)
+	connString := fmt.Sprintf("%s@tcp(%s)/dev?interpolateParams=true&parseTime=true", credentials, dsn)
 	db, err := sql.Open("mysql", connString)
 	if err != nil {
 		log.WithError(err).Error("error connecting to db")
@@ -51,9 +50,6 @@ func NewClient(dsn string, credentials string) (Clienter, error) {
 		log.WithError(err).Error("error establishing active connection to db")
 		return &Client{}, err
 	}
-
-
-	//query1 := `CREATE IF NOT EXISTS SCHEMA test;`
 
 	query := `CREATE TABLE IF NOT EXISTS Users (
     	user_id varchar(36)  NOT NULL,
@@ -85,7 +81,7 @@ func (c *Client) CreateRecord(record UserRecord) Status {
 			log.WithError(err).WithField("UserID", record.UserID).Errorf("user with this email: %s already exists!", record.EmailAddress)
 			return ALREADY_EXISTS
 		}
-		log.WithError(err).WithField("UserID", record.UserID).Errorf("could not add user to db")
+		log.WithError(err).WithField("UserID", record.UserID).Error("could not add user to db")
 		return BACKEND_ERROR
 	}
 	log.WithField("UserID", record.UserID).Infof("created record for user with email %s", record.EmailAddress)
@@ -105,15 +101,15 @@ func (c *Client) UpdateRecord(userID string, fieldsToUpdate map[string]string) S
 	log.WithField("UserID", userID).Debugf("update query: %s", updateTemplate)
 	results, err := c.db.Exec(updateTemplate, userID)
 	if err != nil {
-		log.WithError(err).WithField("UserID", userID).Errorf("could not update user due to error running query")
+		log.WithError(err).WithField("UserID", userID).Error("could not update user due to error running query")
 		return BACKEND_ERROR
 	}
 	rows, err := results.RowsAffected()
 	if err != nil {
-		log.WithError(err).WithField("UserID", userID).Errorf("could not update user due to error with result set")
+		log.WithError(err).WithField("UserID", userID).Error("could not update user due to error with result set")
 		return BACKEND_ERROR
 	} else if rows == 0 {
-		log.WithField("UserID", userID).Infof("could not update user as they do not exist")
+		log.WithField("UserID", userID).Info("could not update user as they do not exist")
 		return NOT_FOUND
 	}
 	log.WithField("UserID", userID).Infof("updated user as follows: %s", updates)
@@ -132,7 +128,8 @@ func (c *Client) RetrieveRecords(fieldsToUpdate map[string]string) ([]UserRecord
 
 	retrieveTemplate := fmt.Sprintf(`SELECT user_id as userID, first_name AS firstName, last_name AS lastName, email, password, nickname, country
 						  FROM Users
-						  %s;`, whereClause)
+						  %s 
+							ORDER BY userID DESC;`, whereClause)
 	log.Debugf("retrieve query is %s", retrieveTemplate)
 
 	statement, err := c.db.Prepare(retrieveTemplate)

@@ -7,10 +7,12 @@ services:
     restart: always
     environment:
       SQL_CREDENTIALS: root:password
-      SQL_DSN: dev
+      SQL_DSN: mysql:3306
       QUEUE_URL: /dev/null
-      APP_PORT: 1234
+      APP_PORT: 8080
       LOG_LEVEL: info
+    depends_on:
+      - mysql
     ports:
     - 8080:8080
 
